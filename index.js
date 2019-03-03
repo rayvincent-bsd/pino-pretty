@@ -64,7 +64,7 @@ module.exports = function prettyFactory (options) {
   const messageKey = opts.messageKey
   const errorLikeObjectKeys = opts.errorLikeObjectKeys
   const errorProps = opts.errorProps.split(',')
-  const ignoreKeys = opts.ignore ? new Set(opts.ignore.split(',')) : undefined
+  const ignoreKeys = opts.ignore ? (Array.isArray(opts.ignore) ? new Set(opts.ignore) : new Set(opts.ignore.split(','))) : undefined
 
   const color = {
     default: nocolor,
@@ -149,8 +149,8 @@ module.exports = function prettyFactory (options) {
     }
 
     var line = ''
-    const standardKeys = [
-      'v'
+    let standardKeys = [
+        'v'
     ]
 
     tokens.forEach((token) => {
