@@ -119,54 +119,92 @@ module.exports = function prettyFactory (options) {
       return
     }
 
-    const standardKeys = [
-      'pid',
-      'hostname',
-      'name',
-      'level',
-      'time',
-      'v'
+    let tokens = [
+      { delimiter: '[', requireAllKeys: ['time'] },
+      { key: 'time' },
+      { delimiter: '] ', requireAllKeys: ['time'] },
+      { key: 'level' }
     ]
 
-    if (opts.translateTime) {
-      log.time = formatTime(log.time, opts.translateTime)
-    }
+    let swapTimeTokens = [
+      { key: 'level' },
+      { delimiter: ' [', requireAllKeys: ['time'] },
+      { key: 'time' },
+      { delimiter: ']', requireAllKeys: ['time'] }
+    ]
 
-    var line = log.time ? `[${log.time}]` : ''
-
-    const coloredLevel = levels.hasOwnProperty(log.level)
-      ? color[log.level](levels[log.level])
-      : color.default(levels.default)
-    if (opts.levelFirst) {
-      line = `${coloredLevel} ${line}`
+    if (opts.format) {
+      tokens = opts.format
     } else {
-      // If the line is not empty (timestamps are enabled) output it
-      // with a space after it - otherwise output the empty string
-      const lineOrEmpty = line && line + ' '
-      line = `${lineOrEmpty}${coloredLevel}`
+      if (opts.levelFirst) {
+        tokens = swapTimeTokens
+      }
+      tokens.push({ delimiter: ' (', requireOneOfKeys: ['name', 'pid', 'hostname'] })
+      tokens.push({ key: 'name' })
+      tokens.push({ delimiter: '/', requireAllKeys: ['name', 'pid'] })
+      tokens.push({ key: 'pid' })
+      tokens.push({ delimiter: ' on ', requireAllKeys: ['hostname'] })
+      tokens.push({ key: 'hostname' })
+      tokens.push({ delimiter: ')', requireOneOfKeys: ['name', 'pid', 'hostname'] })
+      tokens.push({ delimiter: ': ' })
     }
 
-    if (log.name || log.pid || log.hostname) {
-      line += ' ('
-
-      if (log.name) {
-        line += log.name
-      }
-
-      if (log.name && log.pid) {
-        line += '/' + log.pid
-      } else if (log.pid) {
-        line += log.pid
-      }
-
-      if (log.hostname) {
-        line += ' on ' + log.hostname
-      }
-
-      line += ')'
+    var line = ''
+    let standardKeys = []
+    if (opts.ignoreKeys) {
+      standardKeys = opts.ignoreKeys
+    } else {
+      standardKeys = [
+        'v'
+      ]
     }
 
-    line += ': '
+    // Iterate through all tokens to generate the first line
+    tokens.forEach((token) => {
+      // If the token is a key and the key exists on the log
+      if (token.key && log.hasOwnProperty(token.key)) {
+        // Push the key into standard keys so it's not output in subsequent lines
+        standardKeys.push(token.key)
+        switch (token.key) {
+          case 'time':
+            if (log.time) {
+              if (opts.translateTime) {
+                line += formatTime(log.time, opts.translateTime)
+              } else {
+                line += log.time
+              }
+            }
+            break
+          case 'level':
+            const coloredLevel = levels.hasOwnProperty(log.level)
+              ? color[log.level](levels[log.level])
+              : color.default(levels.default)
+            line += coloredLevel
+            break
+          default:
+            if (log.hasOwnProperty(token.key)) {
+              line += log[token.key]
+            }
+        }
+      } else if (token.delimiter) {
+        if (token.requireOneOfKeys) {
+          // Validate that at least one of the keys is available
+          for (var i = 0; i < token.requireOneOfKeys.length; i++) {
+            if (log.hasOwnProperty(token.requireOneOfKeys[i])) {
+              line += token.delimiter
+              break
+            }
+          }
+        } else if (token.requireAllKeys) {
+          // Validate that all of the keys are available
+          if (token.requireAllKeys.every(item => log.hasOwnProperty(item))) {
+            line += token.delimiter
+          }
+        } else {
+          line += token.delimiter
+        }
+      }
+    })
 
     if (log[messageKey] && typeof log[messageKey] === 'string') {
       line += color.message(log[messageKey])
