@@ -119,17 +119,17 @@ module.exports = function prettyFactory (options) {
     }
     
     let tokens = [
-      { delimiter: '[', requiresAll: ['time'] },
+      { delimiter: '[', requireAllKeys: ['time'] },
       { key: 'time' },
-      { delimiter: '] ', requiresAll: ['time'] },
+      { delimiter: '] ', requireAllKeys: ['time'] },
       { key: 'level' }
     ]
 
     let swapTimeTokens = [
       { key: 'level' },
-      { delimiter: ' [', requiresAll: ['time'] },
+      { delimiter: ' [', requireAllKeys: ['time'] },
       { key: 'time' },
-      { delimiter: ']', requiresAll: ['time'] }
+      { delimiter: ']', requireAllKeys: ['time'] }
     ]
 
     if (opts.format) {
@@ -138,13 +138,13 @@ module.exports = function prettyFactory (options) {
       if (opts.levelFirst) {
         tokens = swapTimeTokens
       }
-      tokens.push({ delimiter: ' (', requiresOne: ['name', 'pid', 'hostname'] })
+      tokens.push({ delimiter: ' (', requireOneOfKeys: ['name', 'pid', 'hostname'] })
       tokens.push({ key: 'name' })
-      tokens.push({ delimiter: '/', requiresAll: ['name', 'pid'] })
+      tokens.push({ delimiter: '/', requireAllKeys: ['name', 'pid'] })
       tokens.push({ key: 'pid' })
-      tokens.push({ delimiter: ' on ', requiresAll: ['hostname'] })
+      tokens.push({ delimiter: ' on ', requireAllKeys: ['hostname'] })
       tokens.push({ key: 'hostname' })
-      tokens.push({ delimiter: ')', requiresOne: ['name', 'pid', 'hostname'] })
+      tokens.push({ delimiter: ')', requireOneOfKeys: ['name', 'pid', 'hostname'] })
       tokens.push({ delimiter: ': ' })
     }
 
@@ -153,8 +153,11 @@ module.exports = function prettyFactory (options) {
         'v'
     ]
 
+    // Iterate through all tokens to generate the first line
     tokens.forEach((token) => {
-      if (token.key) {
+      // If the token is a key and the key exists on the log
+      if (token.key && log.hasOwnProperty(token.key)) {
+        // Push the key into standard keys so it's not output in subsequent lines
         standardKeys.push(token.key)
         switch (token.key) {
           case 'time':
@@ -178,15 +181,17 @@ module.exports = function prettyFactory (options) {
             }
         }
       } else if (token.delimiter) {
-        if (token.requiresOne) {
-          for (var i = 0; i < token.requiresOne.length; i++) {
-            if (log.hasOwnProperty(token.requiresOne[i])) {
+        if (token.requireOneOfKeys) {
+          // Validate that at least one of the keys is available
+          for (var i = 0; i < token.requireOneOfKeys.length; i++) {
+            if (log.hasOwnProperty(token.requireOneOfKeys[i])) {
               line += token.delimiter
               break
             }
           }
-        } else if (token.requiresAll) {
-          if (token.requiresAll.every(item => log.hasOwnProperty(item))) {
+        } else if (token.requireAllKeys) {
+          // Validate that all of the keys are available
+          if (token.requireAllKeys.every(item => log.hasOwnProperty(item))) {
             line += token.delimiter
           }
         } else {
