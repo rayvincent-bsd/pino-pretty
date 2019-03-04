@@ -69,6 +69,7 @@ letters see the [`dateformat` documentation](https://www.npmjs.com/package/datef
 + `--search` (`-s`): Specify a search pattern according to
   [jmespath](http://jmespath.org/).
 + `--ignore` (`-i`): Ignore one or several keys: (`-i time,hostname`)
+  `--option-file` (`-o`): Specify a path to a json file containing the pino-pretty options.  pino-pretty will attempt to read from  `process.cwd() + '/.pino-prettyrc.json'` if not specified
 
 <a id="integration"></a>
 ## Programmatic Integration 
