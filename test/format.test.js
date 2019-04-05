@@ -20,7 +20,7 @@ const epoch = 1522431328992
 const pid = process.pid
 const hostname = os.hostname()
 const options = {
-  ignoreKeys: ['time', 'pid', 'hostname', 'v'],
+  ignore: ['time', 'pid', 'hostname', 'v'],
   format: [
     { key: 'level' },
     { delimiter: ' [app:log-test]' },
@@ -128,7 +128,7 @@ test('formatting tests', (t) => {
 
   t.test('Output only the message', (t) => {
     t.plan(1)
-    const pretty = prettyFactory({ format: [], ignoreKeys: ['level', 'time', 'name', 'pid', 'hostname', 'v'] })
+    const pretty = prettyFactory({ format: [], ignore: ['level', 'time', 'name', 'pid', 'hostname', 'v'] })
     const log = pino({}, new Writable({
       write (chunk, enc, cb) {
         const formatted = pretty(chunk.toString())
@@ -165,7 +165,7 @@ test('formatting tests', (t) => {
         { key: 'level' },
         { delimiter: ' : ' }
       ],
-      ignoreKeys: ['time', 'name', 'pid', 'hostname', 'v'] })
+      ignore: ['time', 'name', 'pid', 'hostname', 'v'] })
     const log = pino({}, new Writable({
       write (chunk, enc, cb) {
         const formatted = pretty(chunk.toString())
