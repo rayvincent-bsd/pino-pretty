@@ -59,6 +59,19 @@ function nocolor (input) {
   return input
 }
 
+function hasOneOfKeys (log, keys) {
+  for (var i = 0; i < keys.length; i++) {
+    if (log.hasOwnProperty(keys[i])) {
+      return true
+    }
+  }
+  return false
+}
+
+function hasAllKeys (log, keys) {
+  return keys.every(item => log.hasOwnProperty(item))
+}
+
 module.exports = function prettyFactory (options) {
   const opts = Object.assign({}, defaultOptions, options)
   try {
@@ -75,7 +88,7 @@ module.exports = function prettyFactory (options) {
   const messageKey = opts.messageKey
   const errorLikeObjectKeys = opts.errorLikeObjectKeys
   const errorProps = opts.errorProps.split(',')
-  const ignoreKeys = opts.ignore ? new Set(opts.ignore.split(',')) : undefined
+  const ignoreKeys = opts.ignore ? (Array.isArray(opts.ignore) ? new Set(opts.ignore) : new Set(opts.ignore.split(','))) : undefined
 
   const color = {
     default: nocolor,
@@ -129,57 +142,90 @@ module.exports = function prettyFactory (options) {
         }, {})
     }
 
-    const standardKeys = [
-      'pid',
-      'hostname',
-      'name',
-      'level',
-      'time',
+    let tokens = [
+      { delimiter: '[', requireAllKeys: ['time'] },
+      { key: 'time' },
+      { delimiter: '] ', requireAllKeys: ['time'] },
+      { key: 'level' }
+    ]
+
+    let swapTimeTokens = [
+      { key: 'level' },
+      { delimiter: ' [', requireAllKeys: ['time'] },
+      { key: 'time' },
+      { delimiter: ']', requireAllKeys: ['time'] }
+    ]
+
+    if (opts.format) {
+      tokens = opts.format
+    } else {
+      if (opts.levelFirst) {
+        tokens = swapTimeTokens
+      }
+      tokens.push({ delimiter: ' (', requireOneOfKeys: ['name', 'pid', 'hostname'] })
+      tokens.push({ key: 'name' })
+      tokens.push({ delimiter: '/', requireAllKeys: ['name', 'pid'] })
+      tokens.push({ key: 'pid' })
+      tokens.push({ delimiter: ' ', requireOneOfKeys: ['name', 'pid'], requireAllKeys: ['hostname'] })
+      tokens.push({ delimiter: 'on ', requireAllKeys: ['hostname'] })
+      tokens.push({ key: 'hostname' })
+      tokens.push({ delimiter: ')', requireOneOfKeys: ['name', 'pid', 'hostname'] })
+      tokens.push({ delimiter: ': ' })
+    }
+
+    var line = ''
+    let standardKeys = [
       'v'
     ]
 
-    if (opts.translateTime) {
-      log.time = formatTime(log.time, opts.translateTime)
-    }
-
-    var line = log.time ? `[${log.time}]` : ''
-
-    const coloredLevel = levels.hasOwnProperty(log.level)
-      ? color[log.level](levels[log.level])
-      : color.default(levels.default)
-    if (opts.levelFirst) {
-      line = `${coloredLevel} ${line}`
-    } else {
-      // If the line is not empty (timestamps are enabled) output it
-      // with a space after it - otherwise output the empty string
-      const lineOrEmpty = line && line + ' '
-      line = `${lineOrEmpty}${coloredLevel}`
-    }
-
-    if (log.name || log.pid || log.hostname) {
-      line += ' ('
-
-      if (log.name) {
-        line += log.name
-      }
-
-      if (log.name && log.pid) {
-        line += '/' + log.pid
-      } else if (log.pid) {
-        line += log.pid
-      }
-
-      if (log.hostname) {
-        if (line.slice(-1) !== '(') {
-          line += ' '
+    // Iterate through all tokens to generate the first line
+    tokens.forEach((token) => {
+      // If the token is a key and the key exists on the log
+      if (token.key && log.hasOwnProperty(token.key)) {
+        // Push the key into standard keys so it's not output in subsequent lines
+        standardKeys.push(token.key)
+        switch (token.key) {
+          case 'time':
+            if (log.time) {
+              if (opts.translateTime) {
+                line += formatTime(log.time, opts.translateTime)
+              } else {
+                line += log.time
+              }
+            }
+            break
+          case 'level':
+            const coloredLevel = levels.hasOwnProperty(log.level)
+              ? color[log.level](levels[log.level])
+              : color.default(levels.default)
+            line += coloredLevel
+            break
+          default:
+            if (log.hasOwnProperty(token.key)) {
+              line += log[token.key]
+            }
         }
-        line += 'on ' + log.hostname
+      } else if (token.delimiter) {
+        if (token.requireOneOfKeys && token.requireAllKeys) {
+          // Validate that both conditions are met
+          if (hasAllKeys(log, token.requireAllKeys) && hasOneOfKeys(log, token.requireOneOfKeys)) {
+            line += token.delimiter
+          }
+        } else if (token.requireOneOfKeys) {
+          // Validate that at least one of the keys is available
+          if (hasOneOfKeys(log, token.requireOneOfKeys)) {
+            line += token.delimiter
+          }
+        } else if (token.requireAllKeys) {
+          // Validate that all of the keys are available
+          if (hasAllKeys(log, token.requireAllKeys)) {
+            line += token.delimiter
+          }
+        } else {
+          line += token.delimiter
+        }
       }
-
-      line += ')'
-    }
-
-    line += ': '
+    })
 
     if (log[messageKey] && typeof log[messageKey] === 'string') {
       line += color.message(log[messageKey])
